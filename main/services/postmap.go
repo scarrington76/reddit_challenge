@@ -6,8 +6,9 @@ import (
 )
 
 type PostStats struct {
-	User string
-	Ups  int
+	User  string
+	Ups   int
+	Title string
 }
 
 type SafeMap struct {

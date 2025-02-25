@@ -17,10 +17,10 @@ func toCtx(h http.Handler) http.Handler {
 			posts := []model.Post{}
 			pmap := services.ClonePostMap()
 
-			for k, v := range pmap {
+			for _, v := range pmap {
 				posts = append(
 					posts, model.Post{
-						Name:  k,
+						Name:  v.Title,
 						Votes: v.Ups,
 					},
 				)

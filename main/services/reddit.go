@@ -1,17 +1,17 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
 	"reddit_challenge/model"
 )
 
@@ -20,28 +20,26 @@ const (
 	baseURL   = "https://oauth.reddit.com"
 	userAgent = "reddit_challenge/1.0"
 	subReddit = "r/AskReddit"
+
+	// redditUsed is the header to identify the number of requests used in the period
+	redditUsed = "X-Ratelimit-Used"
+
+	// redditRemaining is the header to identify the number of requests remaining in the period
+	redditRemaining = "X-Ratelimit-Remaining"
+
+	// redditRemaining is the header to identify the time (in seconds) until the period reset
+	redditReset = "X-Ratelimit-Reset"
+
+	// 100 queries per minute (QPM) per OAuth client id
+	// QPM limits will be an average over a time window (currently 10 minutes) to support bursting requests.
 )
 
 var accessToken string
 
-type Reddit struct {
-	Capacity     int
-	CallInterval time.Duration
-	PerCall      int
-	consumed     int
-	started      bool
-	kill         chan bool
-	m            sync.Mutex
-}
-
-// Token structure to store access token and refresh token
-type Token struct {
-	AccessToken  string    `json:"access_token"`
-	TokenType    string    `json:"token_type"`
-	ExpiresIn    int       `json:"expires_in"`
-	RefreshToken string    `json:"refresh_token"`
-	Scope        string    `json:"scope"`
-	Expiry       time.Time // Add an expiry field
+type SubReddit struct {
+	Name  string
+	after string
+	count int
 }
 
 // RedditErrorResponse is an error response structure
@@ -56,68 +54,39 @@ func init() {
 	PostMap = NewSafeMap()
 }
 
-func (b *Reddit) Start() error {
-
-	token, ok := os.LookupEnv("REDDIT_TOKEN")
-	if !ok || strings.TrimSpace(token) == "" {
-		log.Fatal("reddit token not found in env variables - refer to readme")
+func Start() error {
+	if accessToken == "" || strings.TrimSpace(accessToken) == "" {
+		log.Println("reddit service cannot being; access token not present; will re-attempt in 20 seconds")
+		time.Sleep(time.Second * 20)
+		Start()
 	}
-	if b.started {
-		return errors.New("reddit was already started")
+	// TODO: get subreddits from config
+	sub := SubReddit{
+		Name: subReddit,
 	}
-
-	ticker := time.NewTicker(b.CallInterval)
-	b.started = true
-	b.kill = make(chan bool, 1)
-
 	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				b.m.Lock()
-				b.consumed -= b.PerCall
-				if b.consumed < 0 {
-					b.consumed = 0
-				}
-				b.m.Unlock()
-			case <-b.kill:
-				return
-			}
+		err := RedditCall(sub)
+		if err != nil {
+			log.Printf("error processing %s: %v", sub.Name, err)
+			return
 		}
 	}()
 
 	return nil
 }
 
-func (b *Reddit) Stop() error {
-	if !b.started {
-		return errors.New("reddit was never started")
-	}
+func RedditCall(sub SubReddit) error {
 
-	b.kill <- true
-
-	return nil
-}
-
-func (b *Reddit) MakeCall(amt int) error {
-	b.m.Lock()
-	defer b.m.Unlock()
-
-	if b.Capacity-b.consumed < amt {
-		return errors.New("not enough capacity left to make add'l calls")
-	}
-	b.consumed += amt
-	return nil
-}
-
-func RedditCall() error {
-	var after string
-	var count int
+	limiter := rate.NewLimiter(rate.Limit(100/60), 5)
 
 	for {
-		time.Sleep(2 * time.Second)
-
-		response, err := getPosts(after, count)
+		ctx := context.Background()
+		err := limiter.Wait(ctx)
+		if err != nil {
+			fmt.Println("Error waiting for token:", err)
+			return err
+		}
+		response, err := getPosts(sub)
 		if err != nil {
 			return err
 		}
@@ -125,37 +94,41 @@ func RedditCall() error {
 		for _, post := range response.Data.Children {
 			PostMap.Set(
 				post.Data.ID, PostStats{
-					User: post.Data.Author,
-					Ups:  post.Data.Ups,
+					User:  post.Data.Author,
+					Ups:   post.Data.Ups,
+					Title: post.Data.Title,
 				},
 			)
 		}
 
 		l := PostMap.Length()
 		log.Println("the size of the map is: ", l)
-		after = response.Data.After
-		if count == l {
-			count = 0
+		sub.after = response.Data.After
+		if sub.count == l {
+			sub.count = 0
 		} else {
-			count = l
+			sub.count = l
 		}
 	}
 
 	return nil
 }
 
-// getPosts retrieves all the posts in a subreddit including any new posts
-func getPosts(after string, count int) (response model.NewResponse, err error) {
+// getPosts retrieves all the posts in a subreddit including any new posts and places them into a map
+// for storage purposes
+func getPosts(sub SubReddit) (response model.NewResponse, err error) {
 	client := &http.Client{}
 	var qry string
-	if after != "" {
-		qry += "&after=" + after
-	}
-	if count != 0 {
-		qry += "&count=" + strconv.Itoa(count)
+
+	if sub.after != "" {
+		qry += "&after=" + sub.after
 	}
 
-	lwrSub := strings.ToLower(subReddit)
+	if sub.count != 0 {
+		qry += "&count=" + strconv.Itoa(sub.count)
+	}
+
+	lwrSub := strings.ToLower(sub.Name)
 	req, err := http.NewRequest(
 		"GET", baseURL+"/"+lwrSub+"/new?limit=100"+qry, nil,
 	)
@@ -171,6 +144,11 @@ func getPosts(after string, count int) (response model.NewResponse, err error) {
 		return
 	}
 	defer resp.Body.Close()
+
+	used := resp.Header.Get(redditUsed)
+	remaining := resp.Header.Get(redditRemaining)
+	reset := resp.Header.Get(redditReset)
+	log.Printf("used: %v, remaining: %v, reset: %v\n", used, remaining, reset)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -191,8 +169,4 @@ func SetAccessToken(tok string) {
 	}
 	accessToken = tok
 	log.Println("access token set to: ", accessToken)
-	if err := RedditCall(); err != nil {
-		log.Println(err)
-		return
-	}
 }
