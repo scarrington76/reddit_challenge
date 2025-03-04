@@ -3,13 +3,13 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/time/rate"
 	"reddit_challenge/model"
@@ -19,7 +19,6 @@ const (
 	bearer    = "bearer "
 	baseURL   = "https://oauth.reddit.com"
 	userAgent = "reddit_challenge/1.0"
-	subReddit = "r/AskReddit"
 
 	// redditUsed is the header to identify the number of requests used in the period
 	redditUsed = "X-Ratelimit-Used"
@@ -32,12 +31,12 @@ const (
 
 	// 100 queries per minute (QPM) per OAuth client id
 	// QPM limits will be an average over a time window (currently 10 minutes) to support bursting requests.
+	redditEventsPerSecond = 100 / 60
 )
 
-var accessToken string
-
-type SubReddit struct {
-	Name  string
+type RedditRequest struct {
+	Sub   string
+	Map   *SafeMap
 	after string
 	count int
 }
@@ -50,49 +49,44 @@ type RedditErrorResponse struct {
 
 var PostMap *SafeMap
 
-func init() {
-	PostMap = NewSafeMap()
-}
+var Subs []RedditRequest
 
-func Start() error {
-	if accessToken == "" || strings.TrimSpace(accessToken) == "" {
-		log.Println("reddit service cannot being; access token not present; will re-attempt in 20 seconds")
-		time.Sleep(time.Second * 20)
-		Start()
+func Start(tok string) error {
+
+	// set rate limiter to the number of events that reddit allows. Burst is set to
+	// five; could not find anywhere in reddit documents where max burst is set
+	limiter := rate.NewLimiter(rate.Limit(redditEventsPerSecond/len(Subs)), 5)
+
+	for _, req := range Subs {
+		go func() {
+			err := RedditCall(req, tok, limiter)
+			if err != nil {
+				log.Printf("error processing %s: %v", req.Sub, err)
+				return
+			}
+		}()
 	}
-	// TODO: get subreddits from config
-	sub := SubReddit{
-		Name: subReddit,
-	}
-	go func() {
-		err := RedditCall(sub)
-		if err != nil {
-			log.Printf("error processing %s: %v", sub.Name, err)
-			return
-		}
-	}()
 
 	return nil
 }
 
-func RedditCall(sub SubReddit) error {
-
-	limiter := rate.NewLimiter(rate.Limit(100/60), 5)
+func RedditCall(sub RedditRequest, tok string, limit *rate.Limiter) error {
 
 	for {
 		ctx := context.Background()
-		err := limiter.Wait(ctx)
+		err := limit.Wait(ctx)
 		if err != nil {
 			fmt.Println("Error waiting for token:", err)
 			return err
 		}
-		response, err := getPosts(sub)
+		response, err := getPosts(sub, tok)
 		if err != nil {
+			log.Print("error getting posts: ", err)
 			return err
 		}
 
 		for _, post := range response.Data.Children {
-			PostMap.Set(
+			sub.Map.Set(
 				post.Data.ID, PostStats{
 					User:  post.Data.Author,
 					Ups:   post.Data.Ups,
@@ -101,8 +95,8 @@ func RedditCall(sub SubReddit) error {
 			)
 		}
 
-		l := PostMap.Length()
-		log.Println("the size of the map is: ", l)
+		l := sub.Map.Length()
+		log.Println("the size of the "+sub.Sub+" map is: ", l)
 		sub.after = response.Data.After
 		if sub.count == l {
 			sub.count = 0
@@ -110,13 +104,11 @@ func RedditCall(sub SubReddit) error {
 			sub.count = l
 		}
 	}
-
-	return nil
 }
 
 // getPosts retrieves all the posts in a subreddit including any new posts and places them into a map
 // for storage purposes
-func getPosts(sub SubReddit) (response model.NewResponse, err error) {
+func getPosts(sub RedditRequest, tok string) (response model.NewResponse, err error) {
 	client := &http.Client{}
 	var qry string
 
@@ -128,7 +120,7 @@ func getPosts(sub SubReddit) (response model.NewResponse, err error) {
 		qry += "&count=" + strconv.Itoa(sub.count)
 	}
 
-	lwrSub := strings.ToLower(sub.Name)
+	lwrSub := strings.ToLower(sub.Sub)
 	req, err := http.NewRequest(
 		"GET", baseURL+"/"+lwrSub+"/new?limit=100"+qry, nil,
 	)
@@ -136,8 +128,9 @@ func getPosts(sub SubReddit) (response model.NewResponse, err error) {
 		return
 	}
 
-	req.Header.Set("Authorization", bearer+accessToken)
+	req.Header.Set("Authorization", bearer+tok)
 	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -156,17 +149,21 @@ func getPosts(sub SubReddit) (response model.NewResponse, err error) {
 	}
 
 	if err = json.Unmarshal(body, &response); err != nil {
+		var e *json.SyntaxError
+		if errors.As(err, &e) {
+			log.Printf("syntax error at byte offset %d", e.Offset)
+		}
 		return
 	}
 
 	return
 }
 
-func SetAccessToken(tok string) {
-	if tok == "" || strings.TrimSpace(tok) == "" {
-		log.Println("reddit access token not set; token is empty")
-		return
+// TrackSub creates an object to hold information for the reddit sub the client would like to track
+func TrackSub(sub string) {
+	req := RedditRequest{
+		Sub: sub,
+		Map: NewSafeMap(),
 	}
-	accessToken = tok
-	log.Println("access token set to: ", accessToken)
+	Subs = append(Subs, req)
 }

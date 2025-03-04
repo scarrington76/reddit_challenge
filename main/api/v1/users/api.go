@@ -15,8 +15,15 @@ func toCtx(h http.Handler) http.Handler {
 			ctx := r.Context()
 			usermap := make(map[string]int)
 			users := []user{}
+			subs := services.Subs
+			posts := make(map[string]services.PostStats)
 
-			posts := services.ClonePostMap()
+			for _, s := range subs {
+				// there will only be one for this demo
+				m := s.Map
+				posts = m.ClonePostMap()
+			}
+
 			for _, stats := range posts {
 				usr, ok := usermap[stats.User]
 				if ok {

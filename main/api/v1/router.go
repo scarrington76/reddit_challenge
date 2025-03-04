@@ -3,7 +3,6 @@ package v1
 import (
 	"github.com/gorilla/mux"
 	"reddit_challenge/api/v1/posts"
-	"reddit_challenge/api/v1/system"
 	"reddit_challenge/api/v1/users"
 )
 
@@ -15,7 +14,4 @@ func Route(r *mux.Router) {
 
 	u := r.PathPrefix("/users").Subrouter()
 	users.Route(u)
-
-	s := r.PathPrefix("/system").Subrouter()
-	system.Route(s)
 }

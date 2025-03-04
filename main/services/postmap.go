@@ -47,8 +47,8 @@ func (m *SafeMap) Length() int {
 
 // ClonePostMap returns a shallow clone of the map safely. This is intended
 // for endpoints which need to access data.
-func ClonePostMap() map[string]PostStats {
-	PostMap.Lock()
-	defer PostMap.Unlock()
-	return maps.Clone(PostMap.data)
+func (m *SafeMap) ClonePostMap() map[string]PostStats {
+	m.Lock()
+	defer m.Unlock()
+	return maps.Clone(m.data)
 }

@@ -11,11 +11,12 @@ import (
 )
 
 type App struct {
-	Router http.Handler
+	Router      http.Handler
+	RedditToken string
 }
 
 // NewApp creates an instance of the reddit application
-func NewApp() App {
+func NewApp(token string, sub string) App {
 
 	// create the router & subroutes
 	r := mux.NewRouter()
@@ -29,8 +30,10 @@ func NewApp() App {
 		handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}),
 		handlers.AllowCredentials(),
 	)(r)
+
 	app := App{
-		Router: corsHandler,
+		Router:      corsHandler,
+		RedditToken: token,
 	}
 	return app
 }
