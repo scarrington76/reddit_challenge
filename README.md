@@ -37,3 +37,8 @@ string must be populated into the tok variable in main/server/test/test.go**
 cd main
 go test .///
 ```
+
+## Postman
+
+A postman collection is provided in /postman to hit the endpoints to obtain
+user/post statistics. Simply import the collection into postman as a collection.
