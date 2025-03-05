@@ -21,8 +21,13 @@ func main() {
 	}
 
 	redditSub := flag.String("sub", "r/askreddit", "sub-reddit to subscribe to")
+	flag.Parse()
 	if redditSub == nil {
 		log.Panic("no reddit sub provided in command line arguments (i.e. go build main.go -sub r/askreddit)")
+	}
+	if !strings.HasPrefix(*redditSub, "r/") {
+		sub := "r/" + *redditSub
+		redditSub = &sub
 	}
 
 	services.TrackSub(*redditSub)

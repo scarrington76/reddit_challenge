@@ -11,6 +11,11 @@ Verify the required tools by running the following commands:
 go version
 ```
 
+**A Reddit API token is necessary to run the application and must
+be loaded into the env variables under the var name ACCESS_TOKEN**
+
+By default, the r/AskReddit thread will be tracked
+
 ## Start in development mode
 
 Navigate to the `main` folder and start the back end:
@@ -20,3 +25,15 @@ cd main
 go run main.go
 ```
 The back end will serve on http://localhost:8080.
+
+## Unit Testing
+
+Unit tests can also be ran in the application from /main
+
+**A Reddit API token is necessary to run unit tests. The token
+string must be populated into the tok variable in main/server/test/test.go**
+
+```sh
+cd main
+go test .///
+```

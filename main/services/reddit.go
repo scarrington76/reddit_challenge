@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -156,11 +155,11 @@ func getPosts(sub RedditRequest, tok string) (response model.NewResponse, err er
 	}
 
 	if err = json.Unmarshal(body, &response); err != nil {
-		var e *json.SyntaxError
-		if errors.As(err, &e) {
-			log.Printf("syntax error at byte offset %d", e.Offset)
-		}
 		return
+	}
+
+	if len(response.Data.Children) == 0 {
+		log.Println("warning - response is empty")
 	}
 
 	return
