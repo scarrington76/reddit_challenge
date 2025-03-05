@@ -46,6 +46,66 @@
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "POST Code For Token",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://www.reddit.com/api/v1/access_token?grant_type=authorization_code&code=&redirect_uri=http://localhost:8080",
+					"protocol": "https",
+					"host": [
+						"www",
+						"reddit",
+						"com"
+					],
+					"path": [
+						"api",
+						"v1",
+						"access_token"
+					],
+					"query": [
+						{
+							"key": "grant_type",
+							"value": "authorization_code"
+						},
+						{
+							"key": "code",
+							"value": ""
+						},
+						{
+							"key": "redirect_uri",
+							"value": "http://localhost:8080"
+						}
+					]
+				}
+			},
+			"response": []
 		}
 	]
 }

@@ -30,7 +30,7 @@ func main() {
 	if err != nil {
 		log.Panic("services error: ", err)
 	}
-	app := server.NewApp(redditToken, *redditSub)
+	app := server.NewApp(redditToken)
 	err = app.Serve()
 	log.Println("error", err)
 

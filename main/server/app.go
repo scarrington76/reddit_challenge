@@ -16,7 +16,7 @@ type App struct {
 }
 
 // NewApp creates an instance of the reddit application
-func NewApp(token string, sub string) App {
+func NewApp(token string) App {
 
 	// create the router & subroutes
 	r := mux.NewRouter()
