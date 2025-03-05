@@ -4,8 +4,8 @@ package model
 type Post struct {
 
 	// Name is the name of the post
-	Name string `json:"name"`
+	Name string `sql:"name"`
 
 	// Votes is the number of current upvotes that have been tracked
-	Votes int `json:"votes"`
+	Votes int `sql:"votes"`
 }

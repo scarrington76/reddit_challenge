@@ -18,6 +18,11 @@ func toCtx(h http.Handler) http.Handler {
 			subs := services.Subs
 			posts := make(map[string]services.PostStats)
 
+			// in future iterations where multiple subreddits existed,
+			// this function would retrieve records from a db (with the
+			// subreddit as a query param). Instead we obtain the sub
+			// from a map
+
 			for _, s := range subs {
 				// there will only be one for this demo
 				m := s.Map

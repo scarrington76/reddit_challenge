@@ -14,8 +14,10 @@ import (
 	"reddit_challenge/services"
 )
 
+// testApp is the instance of the app used by the test cases
 var testApp server.App
 
+// Setup creates the test server with a reddit access token
 func Setup(t *testing.T) {
 
 	// token must be set manually for testing
@@ -33,6 +35,7 @@ func Setup(t *testing.T) {
 	testApp = server.NewApp(redditToken)
 }
 
+// NewRequestNoBody creates and executes an http request on the test server and returns the response
 func NewRequestNoBody(t *testing.T, method string, url string, expectedCode int) []map[string]interface{} {
 	req, _ := http.NewRequest(method, url, nil)
 	rr := httptest.NewRecorder()

@@ -10,6 +10,7 @@ import (
 	"reddit_challenge/api"
 )
 
+// App holds the information that is needed to create the app
 type App struct {
 	Router      http.Handler
 	RedditToken string

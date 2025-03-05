@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"sort"
 
-	"reddit_challenge/model"
 	"reddit_challenge/services"
 )
 
@@ -14,9 +13,14 @@ func toCtx(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			posts := []model.Post{}
+			posts := []response{}
 			subs := services.Subs
 			pmap := make(map[string]services.PostStats)
+
+			// in future iterations where multiple subreddits existed,
+			// this function would retrieve records from a db (with the
+			// subreddit as a query param). Instead we obtain the sub
+			// from a map
 
 			for _, s := range subs {
 				// there will only be one for this demo
@@ -26,7 +30,7 @@ func toCtx(h http.Handler) http.Handler {
 
 			for _, v := range pmap {
 				posts = append(
-					posts, model.Post{
+					posts, response{
 						Name:  v.Title,
 						Votes: v.Ups,
 					},

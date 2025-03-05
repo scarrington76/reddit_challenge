@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -16,8 +15,13 @@ import (
 )
 
 const (
-	bearer    = "bearer "
-	baseURL   = "https://oauth.reddit.com"
+	// bearer is used to form the bearer token auth
+	bearer = "bearer "
+
+	// baseURL is the base url for all calls to the reddit api
+	baseURL = "https://oauth.reddit.com"
+
+	// userAgent is provided to reddit to identify where the request is coming from
 	userAgent = "reddit_challenge/1.0"
 
 	// redditUsed is the header to identify the number of requests used in the period
@@ -34,6 +38,7 @@ const (
 	redditEventsPerSecond = 100 / 60
 )
 
+// RedditRequest holds the information associated to a reddit sub that is tracked by the system
 type RedditRequest struct {
 	Sub   string
 	Map   *SafeMap
@@ -47,10 +52,14 @@ type RedditErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-var PostMap *SafeMap
-
+// Subs holds all the current reddit requests. For initial purposes, only 1 RedditRequest
+// is currently supported. Future revisions would allow for multiple threads.
 var Subs []RedditRequest
 
+// Start kicks off the service to track a reddit thread based on reddit's API
+// limits. At this time only 1 subreddit thread is supported. Future iterations
+// would include multiple threads and a restart() whenever changes occurred in the
+// number of threads tracked
 func Start(tok string) error {
 
 	// set rate limiter to the number of events that reddit allows. Burst is set to
@@ -70,18 +79,19 @@ func Start(tok string) error {
 	return nil
 }
 
+// RedditCall maintains the polling to the reddit API and posts the returned information to the respective map
 func RedditCall(sub RedditRequest, tok string, limit *rate.Limiter) error {
 
 	for {
 		ctx := context.Background()
 		err := limit.Wait(ctx)
 		if err != nil {
-			fmt.Println("Error waiting for token:", err)
+			log.Println("error waiting for token: ", err)
 			return err
 		}
 		response, err := getPosts(sub, tok)
 		if err != nil {
-			log.Print("error getting posts: ", err)
+			log.Println("error getting posts: ", err)
 			return err
 		}
 
@@ -106,8 +116,7 @@ func RedditCall(sub RedditRequest, tok string, limit *rate.Limiter) error {
 	}
 }
 
-// getPosts retrieves all the posts in a subreddit including any new posts and places them into a map
-// for storage purposes
+// getPosts executes a call to the reddit API returns the map for processing
 func getPosts(sub RedditRequest, tok string) (response model.NewResponse, err error) {
 	client := &http.Client{}
 	var qry string
@@ -121,9 +130,7 @@ func getPosts(sub RedditRequest, tok string) (response model.NewResponse, err er
 	}
 
 	lwrSub := strings.ToLower(sub.Sub)
-	req, err := http.NewRequest(
-		"GET", baseURL+"/"+lwrSub+"/new?limit=100"+qry, nil,
-	)
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/"+lwrSub+"/new?limit=100"+qry, nil)
 	if err != nil {
 		return
 	}

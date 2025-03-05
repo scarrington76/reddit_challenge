@@ -6,6 +6,7 @@ import (
 	"net/http"
 )
 
+// WriteJSON takes in a dto and writes it to the response
 func WriteJSON(rw http.ResponseWriter, data interface{}) {
 	js, err := json.Marshal(data)
 	if err != nil {

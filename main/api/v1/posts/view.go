@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"reddit_challenge/helpers"
-	"reddit_challenge/model"
 )
 
 // show displays the information for posts (post name and # of upvotes) in descending order
@@ -12,7 +11,7 @@ func show() http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			posts := ctx.Value("posts").([]model.Post)
+			posts := ctx.Value("posts").([]response)
 
 			dto := []any{}
 			for _, p := range posts {
