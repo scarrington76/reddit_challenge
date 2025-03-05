@@ -35,7 +35,7 @@ string must be populated into the tok variable in main/server/test/test.go**
 
 ```sh
 cd main
-go test .///
+go test ./...
 ```
 
 ## Postman
